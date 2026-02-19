@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { COLORS } from '../../styles/theme'
 import StatusBadge from '../layout/StatusBadge'
-import { mockLeaves, currentUser } from '../../data/mockData'
+import { getEmployees, getLeaves, createLeave, updateLeaveStatus } from '../../lib/db'
 
 export default function Leaves({ showNotif }) {
-  const [leaves, setLeaves] = useState(mockLeaves)
+  const [leaves, setLeaves] = useState([])
+  const [employees, setEmployees] = useState([])
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({
     type: 'Annual Leave',
     from: '',
@@ -12,37 +14,58 @@ export default function Leaves({ showNotif }) {
     reason: '',
   })
 
-  const handleApprove = (id) => {
-    setLeaves(prev => prev.map(l => l.id === id ? { ...l, status: 'approved' } : l))
+  useEffect(() => {
+    load()
+  }, [])
+
+  async function load() {
+    setLoading(true)
+    const [emps, lvs] = await Promise.all([
+      getEmployees(),
+      getLeaves(),
+    ])
+    setEmployees(emps)
+    setLeaves(lvs)
+    setLoading(false)
+  }
+
+  const handleApprove = async (id) => {
+    await updateLeaveStatus(id, 'approved')
     showNotif('Leave request approved!')
+    load()
   }
 
-  const handleReject = (id) => {
-    setLeaves(prev => prev.map(l => l.id === id ? { ...l, status: 'rejected' } : l))
+  const handleReject = async (id) => {
+    await updateLeaveStatus(id, 'rejected')
     showNotif('Leave request rejected', COLORS.red)
+    load()
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.from || !form.to) {
       showNotif('Please fill all required fields', COLORS.amber)
       return
     }
-    const fromDate = new Date(form.from)
-    const toDate   = new Date(form.to)
-    const days = Math.max(1, Math.round((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1)
+    const me = employees.find(e => e.name === 'Sarah Chen')
+    if (!me) return
 
-    setLeaves(prev => [...prev, {
-      id: Date.now(),
-      employee: currentUser.name,
+    const fromDate = new Date(form.from)
+    const toDate = new Date(form.to)
+    const days = Math.max(1, Math.round(
+      (toDate - fromDate) / (1000 * 60 * 60 * 24)
+    ) + 1)
+
+    await createLeave({
+      employeeId: me.id,
       type: form.type,
-      from: form.from,
-      to: form.to,
+      fromDate: form.from,
+      toDate: form.to,
       days,
-      status: 'pending',
       reason: form.reason || 'No reason provided',
-    }])
+    })
     showNotif('Leave request submitted!')
     setForm({ type: 'Annual Leave', from: '', to: '', reason: '' })
+    load()
   }
 
   const inp = {
@@ -62,6 +85,12 @@ export default function Leaves({ showNotif }) {
     { type: "Sick",     used: 3,  total: 10 },
     { type: "Parental", used: 0,  total: 90 },
   ]
+
+  if (loading) return (
+    <div style={{ color: COLORS.accent, fontSize: 16, padding: 40, textAlign: 'center' }}>
+      Loading leaves...
+    </div>
+  )
 
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
@@ -94,7 +123,6 @@ export default function Leaves({ showNotif }) {
             }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-                {/* Leave Type */}
                 <div>
                   <label style={{
                     color: COLORS.textMuted, fontSize: 12,
@@ -108,13 +136,13 @@ export default function Leaves({ showNotif }) {
                     onChange={e => setForm({ ...form, type: e.target.value })}
                     style={{ ...inp }}
                   >
-                    {["Annual Leave", "Sick Leave", "Emergency Leave", "Unpaid Leave", "Parental Leave"].map(t => (
+                    {["Annual Leave", "Sick Leave", "Emergency Leave",
+                      "Unpaid Leave", "Parental Leave"].map(t => (
                       <option key={t}>{t}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Date Range */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <div>
                     <label style={{
@@ -148,7 +176,6 @@ export default function Leaves({ showNotif }) {
                   </div>
                 </div>
 
-                {/* Reason */}
                 <div>
                   <label style={{
                     color: COLORS.textMuted, fontSize: 12,
@@ -166,7 +193,6 @@ export default function Leaves({ showNotif }) {
                   />
                 </div>
 
-                {/* Submit */}
                 <button
                   onClick={handleSubmit}
                   style={{
@@ -239,12 +265,24 @@ export default function Leaves({ showNotif }) {
           </div>
         </div>
 
-        {/* Right Column - Requests List */}
+        {/* Right Column */}
         <div>
           <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>
             All Requests ({leaves.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {leaves.length === 0 && (
+              <div style={{
+                background: COLORS.surface,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 16,
+                padding: 24,
+                color: COLORS.textMuted,
+                textAlign: 'center',
+              }}>
+                No leave requests yet
+              </div>
+            )}
             {leaves.map(r => (
               <div key={r.id} style={{
                 background: COLORS.surface,
@@ -259,10 +297,10 @@ export default function Leaves({ showNotif }) {
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div style={{ flex: 1 }}>
-
-                    {/* Name + Type */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14 }}>{r.employee}</span>
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>
+                        {r.employees?.name || 'Unknown'}
+                      </span>
                       <span style={{
                         background: COLORS.purpleDim,
                         color: COLORS.purple,
@@ -275,17 +313,13 @@ export default function Leaves({ showNotif }) {
                         {r.type}
                       </span>
                     </div>
-
-                    {/* Dates */}
                     <div style={{
                       color: COLORS.textMuted,
                       fontSize: 12,
                       fontFamily: "'DM Mono', monospace",
                     }}>
-                      {r.from} → {r.to} · {r.days} day{r.days > 1 ? 's' : ''}
+                      {r.from_date} → {r.to_date} · {r.days} day{r.days > 1 ? 's' : ''}
                     </div>
-
-                    {/* Reason */}
                     <div style={{
                       color: COLORS.textDim,
                       fontSize: 12,
@@ -296,7 +330,6 @@ export default function Leaves({ showNotif }) {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div style={{
                     display: "flex",
                     flexDirection: "column",
@@ -345,7 +378,6 @@ export default function Leaves({ showNotif }) {
             ))}
           </div>
         </div>
-
       </div>
     </div>
   )

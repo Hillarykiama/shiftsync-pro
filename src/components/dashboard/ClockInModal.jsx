@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { clockIn, clockOut, getEmployees } from '../../lib/db'
 import { COLORS } from '../../styles/theme'
 
 export default function ClockInModal({ onClose }) {
@@ -11,15 +12,29 @@ export default function ClockInModal({ onClose }) {
     return () => clearInterval(t)
   }, [])
 
-  const handleClock = () => {
+  const handleClock = async () => {
     setStep('scanning')
     setTimeout(() => setStep('verifying'), 1500)
+    try {
+      const employees = await getEmployees()
+      const sarah = employees.find(e => e.name === 'Sarah Chen')
+      if (sarah) await clockIn(sarah.id)
+    } catch (err) {
+      console.error('Clock in error:', err)
+    }
     setTimeout(() => setStep('success'), 3000)
     setClockedIn(true)
   }
 
-  const handleClockOut = () => {
+  const handleClockOut = async () => {
     setStep('clockout')
+    try {
+      const employees = await getEmployees()
+      const sarah = employees.find(e => e.name === 'Sarah Chen')
+      if (sarah) await clockOut(sarah.id)
+    } catch (err) {
+      console.error('Clock out error:', err)
+    }
     setTimeout(() => setStep('clockout-done'), 2000)
   }
 
@@ -101,8 +116,8 @@ export default function ClockInModal({ onClose }) {
             }}>
               {/* Corner Brackets */}
               {[
-                { top: 8,    left: 8,    borderTop: `2px solid ${COLORS.accent}`,  borderLeft:  `2px solid ${COLORS.accent}` },
-                { top: 8,    right: 8,   borderTop: `2px solid ${COLORS.accent}`,  borderRight: `2px solid ${COLORS.accent}` },
+                { top: 8,    left: 8,    borderTop: `2px solid ${COLORS.accent}`,    borderLeft:  `2px solid ${COLORS.accent}` },
+                { top: 8,    right: 8,   borderTop: `2px solid ${COLORS.accent}`,    borderRight: `2px solid ${COLORS.accent}` },
                 { bottom: 8, left: 8,    borderBottom: `2px solid ${COLORS.accent}`, borderLeft:  `2px solid ${COLORS.accent}` },
                 { bottom: 8, right: 8,   borderBottom: `2px solid ${COLORS.accent}`, borderRight: `2px solid ${COLORS.accent}` },
               ].map((s, i) => (
@@ -174,7 +189,6 @@ export default function ClockInModal({ onClose }) {
               position: "relative",
               overflow: "hidden",
             }}>
-              {/* Scan Line Animation */}
               <div style={{
                 position: "absolute",
                 top: 0, left: 0, right: 0,
@@ -271,10 +285,10 @@ export default function ClockInModal({ onClose }) {
               marginBottom: 20,
             }}>
               {[
-                { label: "Employee",  value: "Sarah Chen"     },
-                { label: "Shift",     value: "09:00 – 17:00"  },
-                { label: "Location",  value: "HQ · Floor 3"   },
-                { label: "Method",    value: "Facial Recognition" },
+                { label: "Employee", value: "Sarah Chen"          },
+                { label: "Shift",    value: "09:00 – 17:00"       },
+                { label: "Location", value: "HQ · Floor 3"        },
+                { label: "Method",   value: "Facial Recognition"  },
               ].map(r => (
                 <div key={r.label} style={{
                   display: "flex",
@@ -377,10 +391,10 @@ export default function ClockInModal({ onClose }) {
               marginBottom: 20,
             }}>
               {[
-                { label: "Clock In",       value: "08:57 AM"  },
-                { label: "Clock Out",      value: time        },
-                { label: "Total Hours",    value: "8h 03m"    },
-                { label: "Overtime",       value: "0h"        },
+                { label: "Clock In",    value: "08:57 AM" },
+                { label: "Clock Out",   value: time       },
+                { label: "Total Hours", value: "8h 03m"   },
+                { label: "Overtime",    value: "0h"       },
               ].map(r => (
                 <div key={r.label} style={{
                   display: "flex",
@@ -421,7 +435,7 @@ export default function ClockInModal({ onClose }) {
 
       </div>
 
-      {/* Scan Line Keyframe */}
+      {/* Keyframes */}
       <style>{`
         @keyframes scanLine {
           0%   { top: 0% }

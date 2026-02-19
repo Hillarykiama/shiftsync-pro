@@ -1,9 +1,29 @@
+import { useState, useEffect } from 'react'
 import { COLORS } from '../../styles/theme'
 import MetricCard from '../layout/MetricCard'
 import Avatar from '../layout/Avatar'
-import { mockEmployees } from '../../data/mockData'
+import { getEmployees, getTodayAttendance } from '../../lib/db'
 
 export default function Dashboard({ onClockIn }) {
+  const [employees, setEmployees] = useState([])
+  const [attendance, setAttendance] = useState([])
+
+  useEffect(() => {
+    async function load() {
+      const [emps, att] = await Promise.all([
+        getEmployees(),
+        getTodayAttendance(),
+      ])
+      setEmployees(emps)
+      setAttendance(att)
+    }
+    load()
+  }, [])
+
+  const countBy = status => attendance.filter(a => a.status === status).length
+  const presentToday = attendance.filter(a => a.status !== 'absent').length
+  const totalOvertime = attendance.reduce((sum, a) => sum + (a.overtime || 0), 0)
+
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
 
@@ -19,7 +39,12 @@ export default function Dashboard({ onClockIn }) {
             Good morning, Sarah 👋
           </div>
           <div style={{ color: COLORS.textMuted, marginTop: 4, fontSize: 14 }}>
-            Thursday, February 19, 2026 · Week 8
+            {new Date().toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
           </div>
         </div>
         <button
@@ -49,10 +74,34 @@ export default function Dashboard({ onClockIn }) {
         gap: 16,
         marginBottom: 24,
       }}>
-        <MetricCard label="Present Today"     value="48" sub="of 55 employees"   color={COLORS.green}  icon="✓" />
-        <MetricCard label="On Leave"          value="4"  sub="approved requests" color={COLORS.purple} icon="🌙" />
-        <MetricCard label="Pending Requests"  value="5"  sub="need approval"     color={COLORS.amber}  icon="⏳" />
-        <MetricCard label="Overtime Hours"    value="28.4" sub="this week"       color={COLORS.red}    icon="⚡" />
+        <MetricCard
+          label="Present Today"
+          value={presentToday}
+          sub={`of ${employees.length} employees`}
+          color={COLORS.green}
+          icon="✓"
+        />
+        <MetricCard
+          label="On Leave"
+          value={countBy('clocked-out')}
+          sub="clocked out today"
+          color={COLORS.purple}
+          icon="🌙"
+        />
+        <MetricCard
+          label="Absent Today"
+          value={countBy('absent')}
+          sub="not clocked in"
+          color={COLORS.amber}
+          icon="⏳"
+        />
+        <MetricCard
+          label="Overtime Hours"
+          value={totalOvertime.toFixed(1)}
+          sub="today"
+          color={COLORS.red}
+          icon="⚡"
+        />
       </div>
 
       {/* Bottom Row */}
@@ -65,36 +114,82 @@ export default function Dashboard({ onClockIn }) {
           borderRadius: 16,
           padding: 24,
         }}>
-          <div style={{ fontWeight: 700, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{
+            fontWeight: 700,
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}>
             <span style={{ color: COLORS.accent }}>◈</span> Recent Activity
           </div>
-          {[
-            { avatar: "SC", name: "Sarah Chen",    action: "Clocked in",     time: "08:57 AM", color: COLORS.green },
-            { avatar: "MR", name: "Marcus Reid",   action: "Started break",  time: "12:01 PM", color: COLORS.amber },
-            { avatar: "TK", name: "Tom Kowalski",  action: "Marked absent",  time: "09:00 AM", color: COLORS.red },
-            { avatar: "LM", name: "Lena Müller",   action: "Late check-in",  time: "09:15 AM", color: COLORS.amber },
-          ].map((a, i, arr) => (
-            <div key={i} style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "12px 0",
-              borderBottom: i < arr.length - 1 ? `1px solid ${COLORS.border}` : "none",
-            }}>
-              <Avatar initials={a.avatar} size={34} color={a.color} />
-              <div style={{ flex: 1 }}>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>{a.name}</span>
-                <span style={{ color: COLORS.textMuted, fontSize: 13 }}> · {a.action}</span>
-              </div>
-              <span style={{
-                color: COLORS.textDim,
-                fontSize: 12,
-                fontFamily: "'DM Mono', monospace",
+
+          {attendance.slice(0, 4).map((a, i) => {
+            const emp = a.employees
+            const statusColor = {
+              'clocked-in':  COLORS.green,
+              'on-break':    COLORS.amber,
+              'clocked-out': COLORS.textMuted,
+              'absent':      COLORS.red,
+            }[a.status] || COLORS.textMuted
+
+            const statusLabel = {
+              'clocked-in':  'Clocked in',
+              'on-break':    'On break',
+              'clocked-out': 'Clocked out',
+              'absent':      'Absent',
+            }[a.status] || a.status
+
+            return (
+              <div key={a.id} style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "12px 0",
+                borderBottom: i < Math.min(attendance.length, 4) - 1
+                  ? `1px solid ${COLORS.border}`
+                  : "none",
               }}>
-                {a.time}
-              </span>
+                <Avatar
+                  initials={emp?.avatar || '??'}
+                  size={34}
+                  color={statusColor}
+                />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>
+                    {emp?.name || 'Unknown'}
+                  </span>
+                  <span style={{ color: COLORS.textMuted, fontSize: 13 }}>
+                    {' '}· {statusLabel}
+                  </span>
+                </div>
+                <span style={{
+                  color: COLORS.textDim,
+                  fontSize: 12,
+                  fontFamily: "'DM Mono', monospace",
+                }}>
+                  {a.clock_in
+                    ? new Date(a.clock_in).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '—'
+                  }
+                </span>
+              </div>
+            )
+          })}
+
+          {attendance.length === 0 && (
+            <div style={{
+              color: COLORS.textMuted,
+              fontSize: 14,
+              textAlign: 'center',
+              padding: '20px 0',
+            }}>
+              No attendance records for today
             </div>
-          ))}
+          )}
         </div>
 
         {/* My Week */}
@@ -104,13 +199,19 @@ export default function Dashboard({ onClockIn }) {
           borderRadius: 16,
           padding: 24,
         }}>
-          <div style={{ fontWeight: 700, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{
+            fontWeight: 700,
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}>
             <span style={{ color: COLORS.accent }}>◉</span> My Week
           </div>
 
           {[
             { label: "Hours Worked", value: "38.5h", progress: 38.5 / 40, color: COLORS.accent },
-            { label: "Overtime",     value: "2.5h",  progress: 2.5 / 10,  color: COLORS.red },
+            { label: "Overtime",     value: "2.5h",  progress: 2.5 / 10,  color: COLORS.red   },
             { label: "Punctuality",  value: "96%",   progress: 0.96,      color: COLORS.green },
           ].map((m, i) => (
             <div key={i} style={{ marginBottom: 20 }}>
@@ -145,7 +246,6 @@ export default function Dashboard({ onClockIn }) {
             </div>
           ))}
 
-          {/* Next Shift */}
           <div style={{
             background: COLORS.accentGlow,
             border: `1px solid ${COLORS.accent}22`,

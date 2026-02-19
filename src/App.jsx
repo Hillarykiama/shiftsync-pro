@@ -8,9 +8,12 @@ import Leaves from './components/leaves/Leaves'
 import Analytics from './components/analytics/Analytics'
 import Team from './components/team/Team'
 import ClockInModal from './components/dashboard/ClockInModal'
+import { supabase } from './lib/supabase'
 import { COLORS } from './styles/theme'
 import { currentUser } from './data/mockData'
 import { useIsMobile } from './hooks/useMediaQuery'
+
+console.log('Supabase connected:', supabase)
 
 function App() {
   const [view, setView] = useState('dashboard')

@@ -1,38 +1,60 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { COLORS } from '../../styles/theme'
 import StatusBadge from '../layout/StatusBadge'
-import { mockShifts, mockEmployees, currentUser } from '../../data/mockData'
+import { getEmployees, getShifts, createShiftSwap, updateShiftStatus } from '../../lib/db'
 
 export default function Shifts({ showNotif }) {
-  const [shifts, setShifts] = useState(mockShifts)
+  const [shifts, setShifts] = useState([])
+  const [employees, setEmployees] = useState([])
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ swapWith: '', date: '', reason: '' })
 
-  const handleApprove = (id) => {
-    setShifts(prev => prev.map(s => s.id === id ? { ...s, status: 'approved' } : s))
+  useEffect(() => {
+    load()
+  }, [])
+
+  async function load() {
+    setLoading(true)
+    const [emps, shfts] = await Promise.all([
+      getEmployees(),
+      getShifts(),
+    ])
+    setEmployees(emps)
+    setShifts(shfts)
+    setLoading(false)
+  }
+
+  const handleApprove = async (id) => {
+    await updateShiftStatus(id, 'approved')
     showNotif('Shift swap approved!')
+    load()
   }
 
-  const handleReject = (id) => {
-    setShifts(prev => prev.map(s => s.id === id ? { ...s, status: 'rejected' } : s))
+  const handleReject = async (id) => {
+    await updateShiftStatus(id, 'rejected')
     showNotif('Shift swap rejected', COLORS.red)
+    load()
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.swapWith || !form.date) {
       showNotif('Please fill all required fields', COLORS.amber)
       return
     }
-    setShifts(prev => [...prev, {
-      id: Date.now(),
-      employee: currentUser.name,
-      from: form.swapWith,
+    const me = employees.find(e => e.name === 'Sarah Chen')
+    const swapWith = employees.find(e => e.id === form.swapWith)
+    if (!me || !swapWith) return
+
+    await createShiftSwap({
+      employeeId: me.id,
+      swapWithId: swapWith.id,
       date: form.date,
-      shift: '09:00–17:00',
-      status: 'pending',
+      shift: `${me.shift_start}–${me.shift_end}`,
       reason: form.reason || 'No reason provided',
-    }])
+    })
     showNotif('Shift swap request submitted!')
     setForm({ swapWith: '', date: '', reason: '' })
+    load()
   }
 
   const inp = {
@@ -46,6 +68,12 @@ export default function Shifts({ showNotif }) {
     width: "100%",
     fontFamily: "'Sora', sans-serif",
   }
+
+  if (loading) return (
+    <div style={{ color: COLORS.accent, fontSize: 16, padding: 40, textAlign: 'center' }}>
+      Loading shifts...
+    </div>
+  )
 
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
@@ -75,15 +103,11 @@ export default function Shifts({ showNotif }) {
           }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-              {/* Swap With */}
               <div>
                 <label style={{
-                  color: COLORS.textMuted,
-                  fontSize: 12,
-                  display: "block",
-                  marginBottom: 6,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
+                  color: COLORS.textMuted, fontSize: 12,
+                  display: "block", marginBottom: 6,
+                  textTransform: "uppercase", letterSpacing: "0.06em",
                 }}>
                   Swap With *
                 </label>
@@ -93,26 +117,22 @@ export default function Shifts({ showNotif }) {
                   style={{ ...inp }}
                 >
                   <option value="">Select employee...</option>
-                  {mockEmployees
-                    .filter(e => e.name !== currentUser.name)
+                  {employees
+                    .filter(e => e.name !== 'Sarah Chen')
                     .map(e => (
-                      <option key={e.id} value={e.name}>
-                        {e.name} · {e.shift}
+                      <option key={e.id} value={e.id}>
+                        {e.name} · {e.shift_start}–{e.shift_end}
                       </option>
                     ))
                   }
                 </select>
               </div>
 
-              {/* Date */}
               <div>
                 <label style={{
-                  color: COLORS.textMuted,
-                  fontSize: 12,
-                  display: "block",
-                  marginBottom: 6,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
+                  color: COLORS.textMuted, fontSize: 12,
+                  display: "block", marginBottom: 6,
+                  textTransform: "uppercase", letterSpacing: "0.06em",
                 }}>
                   Date *
                 </label>
@@ -124,15 +144,11 @@ export default function Shifts({ showNotif }) {
                 />
               </div>
 
-              {/* Reason */}
               <div>
                 <label style={{
-                  color: COLORS.textMuted,
-                  fontSize: 12,
-                  display: "block",
-                  marginBottom: 6,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
+                  color: COLORS.textMuted, fontSize: 12,
+                  display: "block", marginBottom: 6,
+                  textTransform: "uppercase", letterSpacing: "0.06em",
                 }}>
                   Reason
                 </label>
@@ -145,7 +161,6 @@ export default function Shifts({ showNotif }) {
                 />
               </div>
 
-              {/* Submit */}
               <button
                 onClick={handleSubmit}
                 style={{
@@ -174,6 +189,18 @@ export default function Shifts({ showNotif }) {
             Swap Requests ({shifts.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {shifts.length === 0 && (
+              <div style={{
+                background: COLORS.surface,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 16,
+                padding: 24,
+                color: COLORS.textMuted,
+                textAlign: 'center',
+              }}>
+                No shift swap requests yet
+              </div>
+            )}
             {shifts.map(s => (
               <div key={s.id} style={{
                 background: COLORS.surface,
@@ -188,9 +215,11 @@ export default function Shifts({ showNotif }) {
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{s.employee}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>
+                      {s.employee?.name || 'Unknown'}
+                    </div>
                     <div style={{ color: COLORS.textMuted, fontSize: 12, marginTop: 3 }}>
-                      ↔ {s.from} · {s.date}
+                      ↔ {s.swap_with?.name || 'Unknown'} · {s.shift_date}
                     </div>
                     <div style={{
                       color: COLORS.textDim,
@@ -198,7 +227,7 @@ export default function Shifts({ showNotif }) {
                       marginTop: 2,
                       fontFamily: "'DM Mono', monospace",
                     }}>
-                      {s.shift}
+                      {s.shift_time}
                     </div>
                     <div style={{
                       color: COLORS.textMuted,
@@ -252,7 +281,6 @@ export default function Shifts({ showNotif }) {
             ))}
           </div>
         </div>
-
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from './components/layout/Sidebar'
 import Notification from './components/layout/Notification'
 import Dashboard from './components/dashboard/Dashboard'
@@ -8,23 +8,82 @@ import Leaves from './components/leaves/Leaves'
 import Analytics from './components/analytics/Analytics'
 import Team from './components/team/Team'
 import ClockInModal from './components/dashboard/ClockInModal'
-import { supabase } from './lib/supabase'
+import Login from './components/auth/Login'
 import { COLORS } from './styles/theme'
-import { currentUser } from './data/mockData'
 import { useIsMobile } from './hooks/useMediaQuery'
-
-console.log('Supabase connected:', supabase)
+import { supabase } from './lib/supabase'
+import { getCurrentUser } from './lib/auth'
 
 function App() {
   const [view, setView] = useState('dashboard')
   const [notification, setNotification] = useState(null)
   const [showClockIn, setShowClockIn] = useState(false)
+  const [session, setSession] = useState(null)
+  const [currentEmployee, setCurrentEmployee] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const isMobile = useIsMobile()
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      if (session) loadEmployee()
+      else setAuthLoading(false)
+    })
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setSession(session)
+        if (session) await loadEmployee()
+        else {
+          setCurrentEmployee(null)
+          setAuthLoading(false)
+        }
+      }
+    )
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function loadEmployee() {
+    setAuthLoading(true)
+    const employee = await getCurrentUser()
+    setCurrentEmployee(employee)
+    setAuthLoading(false)
+  }
 
   const showNotif = (msg, color = COLORS.green) => {
     setNotification({ msg, color })
     setTimeout(() => setNotification(null), 3000)
   }
+
+  // Loading screen
+  if (authLoading) return (
+    <div style={{
+      minHeight: "100vh",
+      background: COLORS.bg,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "column",
+      gap: 16,
+    }}>
+      <div style={{
+        color: COLORS.accent,
+        fontSize: 28,
+        fontWeight: 800,
+        letterSpacing: "-0.02em",
+      }}>
+        ShiftSync
+      </div>
+      <div style={{ color: COLORS.textMuted, fontSize: 14 }}>
+        Loading...
+      </div>
+    </div>
+  )
+
+  // Show login if no session
+  if (!session) return <Login />
 
   return (
     <div style={{
@@ -33,11 +92,11 @@ function App() {
       background: COLORS.bg,
       flexDirection: isMobile ? 'column' : 'row',
     }}>
-
       <Sidebar
         currentView={view}
         onNavigate={setView}
-        user={currentUser}
+        user={currentEmployee || { name: 'Loading...', avatar: '..', role: 'Employee' }}
+        isManager={currentEmployee?.role_type === 'manager'}
       />
 
       <div style={{
@@ -48,11 +107,24 @@ function App() {
         <Notification message={notification?.msg} color={notification?.color} />
 
         {view === 'dashboard'  && (
-          <Dashboard onClockIn={() => setShowClockIn(true)} />
+          <Dashboard
+            onClockIn={() => setShowClockIn(true)}
+            currentEmployee={currentEmployee}
+          />
         )}
         {view === 'attendance' && <Attendance />}
-        {view === 'shifts'     && <Shifts showNotif={showNotif} />}
-        {view === 'leaves'     && <Leaves showNotif={showNotif} />}
+        {view === 'shifts'     && (
+          <Shifts
+            showNotif={showNotif}
+            currentEmployee={currentEmployee}
+          />
+        )}
+        {view === 'leaves'     && (
+          <Leaves
+            showNotif={showNotif}
+            currentEmployee={currentEmployee}
+          />
+        )}
         {view === 'analytics'  && <Analytics />}
         {view === 'team'       && <Team />}
 
@@ -69,9 +141,11 @@ function App() {
       </div>
 
       {showClockIn && (
-        <ClockInModal onClose={() => setShowClockIn(false)} />
+        <ClockInModal
+          onClose={() => setShowClockIn(false)}
+          currentEmployee={currentEmployee}
+        />
       )}
-
     </div>
   )
 }

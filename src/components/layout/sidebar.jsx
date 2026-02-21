@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { COLORS } from '../../styles/theme'
 import Avatar from './Avatar'
 import { useIsMobile } from '../../hooks/useMediaQuery'
+import { signOut } from '../../lib/auth'
 
 const navItems = [
   { id: "dashboard",  label: "Dashboard",  icon: "◈" },
@@ -12,13 +12,15 @@ const navItems = [
   { id: "team",       label: "Team",        icon: "◎" },
 ]
 
-export default function Sidebar({ currentView, onNavigate, user }) {
+export default function Sidebar({ currentView, onNavigate, user, isManager }) {
   const isMobile = useIsMobile()
-  const [mobileOpen, setMobileOpen] = useState(false)
 
   const handleNav = (id) => {
     onNavigate(id)
-    if (isMobile) setMobileOpen(false)
+  }
+
+  const handleSignOut = async () => {
+    await signOut()
   }
 
   // Mobile Bottom Nav Bar
@@ -46,7 +48,24 @@ export default function Sidebar({ currentView, onNavigate, user }) {
           }}>
             ShiftSync
           </div>
-          <Avatar initials={user.avatar} size={32} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Avatar initials={user?.avatar || '..'} size={32} />
+            <button
+              onClick={handleSignOut}
+              style={{
+                background: "none",
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 8,
+                padding: "6px 10px",
+                color: COLORS.textMuted,
+                cursor: "pointer",
+                fontSize: 12,
+                fontFamily: "'DM Mono', monospace",
+              }}
+            >
+              Out →
+            </button>
+          </div>
         </div>
 
         {/* Bottom Nav */}
@@ -112,6 +131,7 @@ export default function Sidebar({ currentView, onNavigate, user }) {
       height: "100vh",
       overflowY: "auto",
     }}>
+
       {/* Logo */}
       <div style={{ marginBottom: 32, padding: "0 8px" }}>
         <div style={{
@@ -128,7 +148,7 @@ export default function Sidebar({ currentView, onNavigate, user }) {
           marginTop: 2,
           fontFamily: "'DM Mono', monospace",
         }}>
-          v1.0.0 · Enterprise
+          v1.0.0 · {isManager ? 'Manager' : 'Employee'}
         </div>
       </div>
 
@@ -139,7 +159,9 @@ export default function Sidebar({ currentView, onNavigate, user }) {
           onClick={() => handleNav(n.id)}
           style={{
             background: currentView === n.id ? COLORS.accentGlow : "transparent",
-            border: currentView === n.id ? `1px solid ${COLORS.accent}33` : "1px solid transparent",
+            border: currentView === n.id
+              ? `1px solid ${COLORS.accent}33`
+              : "1px solid transparent",
             borderRadius: 10,
             padding: "10px 14px",
             color: currentView === n.id ? COLORS.accent : COLORS.textMuted,
@@ -161,6 +183,7 @@ export default function Sidebar({ currentView, onNavigate, user }) {
         </button>
       ))}
 
+      {/* Spacer */}
       <div style={{ flex: 1 }} />
 
       {/* User Profile */}
@@ -173,12 +196,50 @@ export default function Sidebar({ currentView, onNavigate, user }) {
         alignItems: "center",
         gap: 10,
       }}>
-        <Avatar initials={user.avatar} size={32} />
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{user.name}</div>
-          <div style={{ fontSize: 11, color: COLORS.textMuted }}>{user.role}</div>
+        <Avatar initials={user?.avatar || '..'} size={32} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            {user?.name || 'Loading...'}
+          </div>
+          <div style={{ fontSize: 11, color: COLORS.textMuted }}>
+            {isManager ? '⭐ Manager' : 'Employee'}
+          </div>
         </div>
       </div>
+
+      {/* Sign Out */}
+      <button
+        onClick={handleSignOut}
+        style={{
+          background: "none",
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: 10,
+          padding: "10px 14px",
+          color: COLORS.textMuted,
+          cursor: "pointer",
+          fontSize: 13,
+          width: "100%",
+          marginTop: 8,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          transition: "all 0.15s",
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = COLORS.redDim
+          e.currentTarget.style.color = COLORS.red
+          e.currentTarget.style.borderColor = `${COLORS.red}44`
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = "none"
+          e.currentTarget.style.color = COLORS.textMuted
+          e.currentTarget.style.borderColor = COLORS.border
+        }}
+      >
+        <span>→</span> Sign Out
+      </button>
+
     </div>
   )
 }

@@ -23,20 +23,43 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true)
   const isMobile = useIsMobile()
 
+  async function loadEmployee() {
+    setAuthLoading(true)
+    try {
+      const employee = await getCurrentUser()
+      console.log('Employee loaded:', employee)
+      setCurrentEmployee(employee)
+    } catch (err) {
+      console.error('loadEmployee error:', err)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    console.log('App mounted, checking session...')
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      console.log('Session result:', session, 'Error:', error)
       setSession(session)
-      if (session) loadEmployee()
-      else setAuthLoading(false)
+      if (session) {
+        loadEmployee()
+      } else {
+        console.log('No session, showing login')
+        setAuthLoading(false)
+      }
+    }).catch((err) => {
+      console.log('Session check failed:', err)
+      setAuthLoading(false)
     })
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        console.log('Auth state changed:', _event, session)
         setSession(session)
-        if (session) await loadEmployee()
-        else {
+        if (session) {
+          await loadEmployee()
+        } else {
           setCurrentEmployee(null)
           setAuthLoading(false)
         }
@@ -44,13 +67,6 @@ function App() {
     )
     return () => subscription.unsubscribe()
   }, [])
-
-  async function loadEmployee() {
-    setAuthLoading(true)
-    const employee = await getCurrentUser()
-    setCurrentEmployee(employee)
-    setAuthLoading(false)
-  }
 
   const showNotif = (msg, color = COLORS.green) => {
     setNotification({ msg, color })
@@ -106,27 +122,27 @@ function App() {
       }}>
         <Notification message={notification?.msg} color={notification?.color} />
 
-        {view === 'dashboard'  && (
+        {view === 'dashboard' && (
           <Dashboard
             onClockIn={() => setShowClockIn(true)}
             currentEmployee={currentEmployee}
           />
         )}
         {view === 'attendance' && <Attendance />}
-        {view === 'shifts'     && (
+        {view === 'shifts' && (
           <Shifts
             showNotif={showNotif}
             currentEmployee={currentEmployee}
           />
         )}
-        {view === 'leaves'     && (
+        {view === 'leaves' && (
           <Leaves
             showNotif={showNotif}
             currentEmployee={currentEmployee}
           />
         )}
-        {view === 'analytics'  && <Analytics />}
-        {view === 'team'       && <Team />}
+        {view === 'analytics' && <Analytics />}
+        {view === 'team'      && <Team />}
 
         {view !== 'dashboard'  &&
          view !== 'attendance' &&

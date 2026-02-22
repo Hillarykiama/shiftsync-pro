@@ -1,19 +1,37 @@
 import { supabase } from './supabase'
 
 export async function getCurrentUser() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    console.log('Auth user:', user, 'Error:', error)
+    if (error || !user) return null
 
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('*')
-    .eq('user_id', user.id)
-    .single()
+    const { data: employee, error: empError } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
 
-  return employee || null
+    console.log('Employee query result:', employee, 'Error:', empError)
+
+    if (empError) {
+      console.error('Employee fetch error:', empError)
+      return null
+    }
+
+    return employee || null
+  } catch (err) {
+    console.error('getCurrentUser error:', err)
+    return null
+  }
 }
 
 export async function signOut() {
-  const { error } = await supabase.auth.signOut()
-  if (error) console.error('signOut error:', error)
+  try {
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  } catch (err) {
+    console.error('signOut error:', err)
+    window.location.href = '/'
+  }
 }

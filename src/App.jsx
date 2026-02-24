@@ -23,47 +23,53 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true)
   const isMobile = useIsMobile()
 
-  async function loadEmployee() {
-    setAuthLoading(true)
-    try {
-      const employee = await getCurrentUser()
-      console.log('Employee loaded:', employee)
-      setCurrentEmployee(employee)
-    } catch (err) {
-      console.error('loadEmployee error:', err)
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
   useEffect(() => {
-    console.log('App mounted, checking session...')
+    let mounted = true
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return
+      setSession(session)
+      if (session) {
+        const employee = await getCurrentUser()
+        if (mounted) {
+          setCurrentEmployee(employee)
+          setAuthLoading(false)
+        }
+      } else {
+        if (mounted) setAuthLoading(false)
+      }
+    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        console.log('Auth state changed:', _event)
-        setSession(session)
-        if (session) {
-          await loadEmployee()
-        } else {
+        if (!mounted) return
+        console.log('Auth event:', _event)
+
+        if (_event === 'SIGNED_IN') {
+          setSession(session)
+          const employee = await getCurrentUser()
+          if (mounted) {
+            setCurrentEmployee(employee)
+            setAuthLoading(false)
+          }
+        }
+
+        if (_event === 'SIGNED_OUT') {
+          setSession(null)
           setCurrentEmployee(null)
           setAuthLoading(false)
+        }
+
+        if (_event === 'TOKEN_REFRESHED') {
+          setSession(session)
         }
       }
     )
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session:', session ? session.user.email : 'none')
-      setSession(session)
-      if (session) {
-        loadEmployee()
-      } else {
-        setAuthLoading(false)
-      }
-    })
-
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const showNotif = (msg, color = COLORS.green) => {

@@ -39,23 +39,9 @@ function App() {
   useEffect(() => {
     console.log('App mounted, checking session...')
 
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      console.log('Session result:', session, 'Error:', error)
-      setSession(session)
-      if (session) {
-        loadEmployee()
-      } else {
-        console.log('No session, showing login')
-        setAuthLoading(false)
-      }
-    }).catch((err) => {
-      console.log('Session check failed:', err)
-      setAuthLoading(false)
-    })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        console.log('Auth state changed:', _event, session)
+        console.log('Auth state changed:', _event)
         setSession(session)
         if (session) {
           await loadEmployee()
@@ -65,6 +51,18 @@ function App() {
         }
       }
     )
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session ? session.user.email : 'none')
+      setSession(session)
+      if (session) {
+        loadEmployee()
+      } else {
+        setAuthLoading(false)
+      }
+    })
+
     return () => subscription.unsubscribe()
   }, [])
 

@@ -7,6 +7,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -79,10 +80,7 @@ export default function Login() {
           }}>
             ShiftSync
           </div>
-          <div style={{
-            color: COLORS.textMuted,
-            fontSize: 14,
-          }}>
+          <div style={{ color: COLORS.textMuted, fontSize: 14 }}>
             Smart Shift & Attendance Management
           </div>
         </div>
@@ -139,7 +137,7 @@ export default function Login() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              placeholder="you@shiftsync.com"
+              placeholder="you@company.com"
               style={{ ...inp }}
             />
           </div>
@@ -156,14 +154,36 @@ export default function Login() {
             }}>
               Password
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              placeholder="••••••••"
-              style={{ ...inp }}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                placeholder="••••••••"
+                style={{ ...inp, paddingRight: 44 }}
+              />
+              <button
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: COLORS.textMuted,
+                  fontSize: 16,
+                  padding: 4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {showPassword ? '🙈' : '👁'}
+              </button>
+            </div>
           </div>
 
           {/* Submit */}
@@ -192,65 +212,14 @@ export default function Login() {
           </button>
         </div>
 
-        {/* Demo accounts */}
+        {/* Footer */}
         <div style={{
           marginTop: 32,
-          padding: "16px",
-          background: COLORS.surfaceAlt,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: 12,
+          textAlign: "center",
+          color: COLORS.textDim,
+          fontSize: 12,
         }}>
-          <div style={{
-            color: COLORS.textMuted,
-            fontSize: 11,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 10,
-            fontFamily: "'DM Mono', monospace",
-          }}>
-            Demo Accounts
-          </div>
-          {[
-            { name: "Sarah Chen",   email: "sarah.chen@shiftsync.com",   role: "Manager"  },
-            { name: "Marcus Reid",  email: "marcus.reid@shiftsync.com",  role: "Employee" },
-            { name: "James Okafor", email: "james.okafor@shiftsync.com", role: "Employee" },
-          ].map(u => (
-            <button
-              key={u.email}
-              onClick={() => {
-                setEmail(u.email)
-                setPassword('Password123!')
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                width: "100%",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "6px 0",
-                cursor: "pointer",
-                borderBottom: `1px solid ${COLORS.border}`,
-              }}
-            >
-              <span style={{ color: COLORS.text, fontSize: 13 }}>{u.name}</span>
-              <span style={{
-                color: u.role === 'Manager' ? COLORS.accent : COLORS.textMuted,
-                fontSize: 11,
-                fontFamily: "'DM Mono', monospace",
-              }}>
-                {u.role}
-              </span>
-            </button>
-          ))}
-          <div style={{
-            color: COLORS.textDim,
-            fontSize: 11,
-            marginTop: 8,
-            textAlign: "center",
-          }}>
-            Click any account to autofill credentials
-          </div>
+          Contact your administrator if you need access
         </div>
 
       </div>

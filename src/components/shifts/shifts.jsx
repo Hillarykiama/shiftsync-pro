@@ -2,16 +2,17 @@ import { useState, useEffect } from 'react'
 import { COLORS } from '../../styles/theme'
 import StatusBadge from '../layout/StatusBadge'
 import { getEmployees, getShifts, createShiftSwap, updateShiftStatus } from '../../lib/db'
+import { useAuth, useIsManager } from '../../context/AuthContext'
 
 export default function Shifts({ showNotif }) {
+  const { currentEmployee } = useAuth()
+  const isManager = useIsManager()
   const [shifts, setShifts] = useState([])
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ swapWith: '', date: '', reason: '' })
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
@@ -41,7 +42,7 @@ export default function Shifts({ showNotif }) {
       showNotif('Please fill all required fields', COLORS.amber)
       return
     }
-    const me = employees.find(e => e.name === 'Sarah Chen')
+    const me = currentEmployee
     const swapWith = employees.find(e => e.id === form.swapWith)
     if (!me || !swapWith) return
 
@@ -69,6 +70,10 @@ export default function Shifts({ showNotif }) {
     fontFamily: "'Sora', sans-serif",
   }
 
+  const visibleShifts = isManager
+    ? shifts
+    : shifts.filter(s => s.employee_id === currentEmployee?.id)
+
   if (loading) return (
     <div style={{ color: COLORS.accent, fontSize: 16, padding: 40, textAlign: 'center' }}>
       Loading shifts...
@@ -78,19 +83,21 @@ export default function Shifts({ showNotif }) {
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
 
-      {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em" }}>
           Shift Management
         </div>
         <div style={{ color: COLORS.textMuted, fontSize: 14, marginTop: 4 }}>
-          Request swaps · Manager approval workflow
+          {isManager
+            ? 'Manage all shift swap requests'
+            : 'Request shift swaps · Track your requests'
+          }
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 20 }}>
 
-        {/* Request Form */}
+        {/* Form */}
         <div>
           <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>
             Request Shift Swap
@@ -102,7 +109,6 @@ export default function Shifts({ showNotif }) {
             padding: 24,
           }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
               <div>
                 <label style={{
                   color: COLORS.textMuted, fontSize: 12,
@@ -118,7 +124,7 @@ export default function Shifts({ showNotif }) {
                 >
                   <option value="">Select employee...</option>
                   {employees
-                    .filter(e => e.name !== 'Sarah Chen')
+                    .filter(e => e.id !== currentEmployee?.id)
                     .map(e => (
                       <option key={e.id} value={e.id}>
                         {e.name} · {e.shift_start}–{e.shift_end}
@@ -173,7 +179,6 @@ export default function Shifts({ showNotif }) {
                   fontSize: 14,
                   cursor: "pointer",
                   fontFamily: "'DM Mono', monospace",
-                  letterSpacing: "0.04em",
                   width: "100%",
                 }}
               >
@@ -183,13 +188,16 @@ export default function Shifts({ showNotif }) {
           </div>
         </div>
 
-        {/* Requests List */}
+        {/* List */}
         <div>
           <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>
-            Swap Requests ({shifts.length})
+            {isManager
+              ? `All Swap Requests (${shifts.length})`
+              : `My Requests (${visibleShifts.length})`
+            }
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {shifts.length === 0 && (
+            {visibleShifts.length === 0 && (
               <div style={{
                 background: COLORS.surface,
                 border: `1px solid ${COLORS.border}`,
@@ -201,7 +209,7 @@ export default function Shifts({ showNotif }) {
                 No shift swap requests yet
               </div>
             )}
-            {shifts.map(s => (
+            {visibleShifts.map(s => (
               <div key={s.id} style={{
                 background: COLORS.surface,
                 border: `1px solid ${COLORS.border}`,
@@ -222,38 +230,33 @@ export default function Shifts({ showNotif }) {
                       ↔ {s.swap_with?.name || 'Unknown'} · {s.shift_date}
                     </div>
                     <div style={{
-                      color: COLORS.textDim,
-                      fontSize: 12,
-                      marginTop: 2,
+                      color: COLORS.textDim, fontSize: 12, marginTop: 2,
                       fontFamily: "'DM Mono', monospace",
                     }}>
                       {s.shift_time}
                     </div>
                     <div style={{
-                      color: COLORS.textMuted,
-                      fontSize: 12,
-                      marginTop: 8,
-                      fontStyle: "italic",
+                      color: COLORS.textMuted, fontSize: 12,
+                      marginTop: 8, fontStyle: "italic",
                     }}>
                       "{s.reason}"
                     </div>
                   </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+                  <div style={{
+                    display: "flex", flexDirection: "column",
+                    gap: 8, alignItems: "flex-end",
+                  }}>
                     <StatusBadge status={s.status} />
-                    {s.status === 'pending' && (
+                    {s.status === 'pending' && isManager && (
                       <div style={{ display: "flex", gap: 6 }}>
                         <button
                           onClick={() => handleApprove(s.id)}
                           style={{
                             background: COLORS.greenDim,
                             border: `1px solid ${COLORS.green}44`,
-                            borderRadius: 8,
-                            padding: "5px 12px",
-                            color: COLORS.green,
-                            fontWeight: 700,
-                            fontSize: 12,
-                            cursor: "pointer",
+                            borderRadius: 8, padding: "5px 12px",
+                            color: COLORS.green, fontWeight: 700,
+                            fontSize: 12, cursor: "pointer",
                           }}
                         >
                           ✓ Approve
@@ -263,12 +266,9 @@ export default function Shifts({ showNotif }) {
                           style={{
                             background: COLORS.redDim,
                             border: `1px solid ${COLORS.red}44`,
-                            borderRadius: 8,
-                            padding: "5px 12px",
-                            color: COLORS.red,
-                            fontWeight: 700,
-                            fontSize: 12,
-                            cursor: "pointer",
+                            borderRadius: 8, padding: "5px 12px",
+                            color: COLORS.red, fontWeight: 700,
+                            fontSize: 12, cursor: "pointer",
                           }}
                         >
                           ✕ Reject

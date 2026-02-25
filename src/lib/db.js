@@ -194,3 +194,29 @@ export async function updateLeaveStatus(id, status) {
   if (error) console.error('updateLeaveStatus error:', error)
   return data
 }
+// ─── ANALYTICS ───────────────────────────────────────────
+export async function getAttendanceAnalytics() {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select(`
+      *,
+      employees ( name, department )
+    `)
+    .order('date', { ascending: false })
+  if (error) console.error('getAttendanceAnalytics error:', error)
+  return data || []
+}
+
+export async function getWeeklyAttendance() {
+  const today = new Date()
+  const sevenDaysAgo = new Date(today)
+  sevenDaysAgo.setDate(today.getDate() - 6)
+
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('date, status, employee_id')
+    .gte('date', sevenDaysAgo.toISOString().split('T')[0])
+    .lte('date', today.toISOString().split('T')[0])
+  if (error) console.error('getWeeklyAttendance error:', error)
+  return data || []
+}

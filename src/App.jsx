@@ -9,6 +9,7 @@ import Analytics from './components/analytics/Analytics'
 import Team from './components/team/Team'
 import ClockInModal from './components/dashboard/ClockInModal'
 import Login from './components/auth/Login'
+import { AuthContext } from './context/AuthContext'
 import { COLORS } from './styles/theme'
 import { useIsMobile } from './hooks/useMediaQuery'
 import { supabase } from './lib/supabase'
@@ -43,8 +44,6 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (!mounted) return
-        console.log('Auth event:', _event)
-
         if (_event === 'SIGNED_IN') {
           setSession(session)
           const employee = await getCurrentUser()
@@ -53,13 +52,11 @@ function App() {
             setAuthLoading(false)
           }
         }
-
         if (_event === 'SIGNED_OUT') {
           setSession(null)
           setCurrentEmployee(null)
           setAuthLoading(false)
         }
-
         if (_event === 'TOKEN_REFRESHED') {
           setSession(session)
         }
@@ -77,7 +74,8 @@ function App() {
     setTimeout(() => setNotification(null), 3000)
   }
 
-  // Loading screen
+  const isManager = currentEmployee?.role_type === 'manager'
+
   if (authLoading) return (
     <div style={{
       minHeight: "100vh",
@@ -102,71 +100,62 @@ function App() {
     </div>
   )
 
-  // Show login if no session
   if (!session) return <Login />
 
   return (
-    <div style={{
-      display: 'flex',
-      minHeight: '100vh',
-      background: COLORS.bg,
-      flexDirection: isMobile ? 'column' : 'row',
-    }}>
-      <Sidebar
-        currentView={view}
-        onNavigate={setView}
-        user={currentEmployee || { name: 'Loading...', avatar: '..', role: 'Employee' }}
-        isManager={currentEmployee?.role_type === 'manager'}
-      />
-
+    <AuthContext.Provider value={{ currentEmployee, isManager }}>
       <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: isMobile ? '76px 16px 80px' : '32px',
+        display: 'flex',
+        minHeight: '100vh',
+        background: COLORS.bg,
+        flexDirection: isMobile ? 'column' : 'row',
       }}>
-        <Notification message={notification?.msg} color={notification?.color} />
+        <Sidebar
+          currentView={view}
+          onNavigate={setView}
+          user={currentEmployee || { name: 'Loading...', avatar: '..', role: 'Employee' }}
+          isManager={isManager}
+        />
 
-        {view === 'dashboard' && (
-          <Dashboard
-            onClockIn={() => setShowClockIn(true)}
-            currentEmployee={currentEmployee}
-          />
-        )}
-        {view === 'attendance' && <Attendance />}
-        {view === 'shifts' && (
-          <Shifts
-            showNotif={showNotif}
-            currentEmployee={currentEmployee}
-          />
-        )}
-        {view === 'leaves' && (
-          <Leaves
-            showNotif={showNotif}
-            currentEmployee={currentEmployee}
-          />
-        )}
-        {view === 'analytics' && <Analytics />}
-        {view === 'team'      && <Team />}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: isMobile ? '76px 16px 80px' : '32px',
+        }}>
+          <Notification message={notification?.msg} color={notification?.color} />
 
-        {view !== 'dashboard'  &&
-         view !== 'attendance' &&
-         view !== 'shifts'     &&
-         view !== 'leaves'     &&
-         view !== 'analytics'  &&
-         view !== 'team'       && (
-          <div style={{ color: COLORS.accent, fontSize: 24, fontWeight: 800 }}>
-            📍 {view} — coming soon!
-          </div>
+          {view === 'dashboard' && (
+            <Dashboard
+              onClockIn={() => setShowClockIn(true)}
+              currentEmployee={currentEmployee}
+            />
+          )}
+          {view === 'attendance' && <Attendance />}
+          {view === 'shifts'     && <Shifts showNotif={showNotif} />}
+          {view === 'leaves'     && <Leaves showNotif={showNotif} />}
+          {view === 'analytics'  && <Analytics />}
+          {view === 'team'       && <Team />}
+
+          {view !== 'dashboard'  &&
+           view !== 'attendance' &&
+           view !== 'shifts'     &&
+           view !== 'leaves'     &&
+           view !== 'analytics'  &&
+           view !== 'team'       && (
+            <div style={{ color: COLORS.accent, fontSize: 24, fontWeight: 800 }}>
+              📍 {view} — coming soon!
+            </div>
+          )}
+        </div>
+
+        {showClockIn && (
+          <ClockInModal
+            onClose={() => setShowClockIn(false)}
+            currentEmployee={currentEmployee}
+          />
         )}
       </div>
-
-      {showClockIn && (
-        <ClockInModal
-          onClose={() => setShowClockIn(false)}
-          currentEmployee={currentEmployee}
-        />
-      )}
-    </div>
+    </AuthContext.Provider>
   )
 }
 

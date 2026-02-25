@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { COLORS } from '../../styles/theme'
 import StatusBadge from '../layout/StatusBadge'
-import { getEmployees, getLeaves, createLeave, updateLeaveStatus } from '../../lib/db'
+import { getLeaves, createLeave, updateLeaveStatus } from '../../lib/db'
+import { useAuth, useIsManager } from '../../context/AuthContext'
 
 export default function Leaves({ showNotif }) {
+  const { currentEmployee } = useAuth()
+  const isManager = useIsManager()
   const [leaves, setLeaves] = useState([])
-  const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({
     type: 'Annual Leave',
@@ -14,17 +16,11 @@ export default function Leaves({ showNotif }) {
     reason: '',
   })
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
-    const [emps, lvs] = await Promise.all([
-      getEmployees(),
-      getLeaves(),
-    ])
-    setEmployees(emps)
+    const lvs = await getLeaves()
     setLeaves(lvs)
     setLoading(false)
   }
@@ -46,7 +42,7 @@ export default function Leaves({ showNotif }) {
       showNotif('Please fill all required fields', COLORS.amber)
       return
     }
-    const me = employees.find(e => e.name === 'Sarah Chen')
+    const me = currentEmployee
     if (!me) return
 
     const fromDate = new Date(form.from)
@@ -86,6 +82,10 @@ export default function Leaves({ showNotif }) {
     { type: "Parental", used: 0,  total: 90 },
   ]
 
+  const visibleLeaves = isManager
+    ? leaves
+    : leaves.filter(l => l.employee_id === currentEmployee?.id)
+
   if (loading) return (
     <div style={{ color: COLORS.accent, fontSize: 16, padding: 40, textAlign: 'center' }}>
       Loading leaves...
@@ -95,22 +95,22 @@ export default function Leaves({ showNotif }) {
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
 
-      {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em" }}>
           Leave Management
         </div>
         <div style={{ color: COLORS.textMuted, fontSize: 14, marginTop: 4 }}>
-          Submit and track leave requests
+          {isManager
+            ? 'Manage all employee leave requests'
+            : 'Submit and track your leave requests'
+          }
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 20 }}>
 
-        {/* Left Column */}
+        {/* Left */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-          {/* Request Form */}
           <div>
             <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>
               New Request
@@ -122,7 +122,6 @@ export default function Leaves({ showNotif }) {
               padding: 24,
             }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
                 <div>
                   <label style={{
                     color: COLORS.textMuted, fontSize: 12,
@@ -205,7 +204,6 @@ export default function Leaves({ showNotif }) {
                     fontSize: 14,
                     cursor: "pointer",
                     fontFamily: "'DM Mono', monospace",
-                    letterSpacing: "0.04em",
                     width: "100%",
                   }}
                 >
@@ -222,42 +220,31 @@ export default function Leaves({ showNotif }) {
             borderRadius: 16,
             padding: 24,
           }}>
-            <div style={{
-              fontWeight: 700,
-              marginBottom: 16,
-              color: COLORS.purple,
-              fontSize: 15,
-            }}>
+            <div style={{ fontWeight: 700, marginBottom: 16, color: COLORS.purple, fontSize: 15 }}>
               Leave Balance
             </div>
             {leaveBalance.map(b => (
               <div key={b.type} style={{ marginBottom: 14 }}>
                 <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 13,
-                  marginBottom: 6,
+                  display: "flex", justifyContent: "space-between",
+                  fontSize: 13, marginBottom: 6,
                 }}>
                   <span style={{ color: COLORS.textMuted }}>{b.type}</span>
                   <span style={{
                     fontFamily: "'DM Mono', monospace",
-                    color: COLORS.purple,
-                    fontWeight: 700,
+                    color: COLORS.purple, fontWeight: 700,
                   }}>
                     {b.total - b.used} days left
                   </span>
                 </div>
                 <div style={{
                   background: `${COLORS.purple}22`,
-                  borderRadius: 4,
-                  height: 6,
-                  overflow: "hidden",
+                  borderRadius: 4, height: 6, overflow: "hidden",
                 }}>
                   <div style={{
                     width: `${(b.used / b.total) * 100}%`,
                     background: COLORS.purple,
-                    height: "100%",
-                    borderRadius: 4,
+                    height: "100%", borderRadius: 4,
                   }} />
                 </div>
               </div>
@@ -265,30 +252,30 @@ export default function Leaves({ showNotif }) {
           </div>
         </div>
 
-        {/* Right Column */}
+        {/* Right */}
         <div>
           <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>
-            All Requests ({leaves.length})
+            {isManager
+              ? `All Requests (${leaves.length})`
+              : `My Requests (${visibleLeaves.length})`
+            }
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {leaves.length === 0 && (
+            {visibleLeaves.length === 0 && (
               <div style={{
                 background: COLORS.surface,
                 border: `1px solid ${COLORS.border}`,
-                borderRadius: 16,
-                padding: 24,
-                color: COLORS.textMuted,
-                textAlign: 'center',
+                borderRadius: 16, padding: 24,
+                color: COLORS.textMuted, textAlign: 'center',
               }}>
                 No leave requests yet
               </div>
             )}
-            {leaves.map(r => (
+            {visibleLeaves.map(r => (
               <div key={r.id} style={{
                 background: COLORS.surface,
                 border: `1px solid ${COLORS.border}`,
-                borderRadius: 16,
-                padding: "16px 20px",
+                borderRadius: 16, padding: "16px 20px",
                 borderLeft: `3px solid ${
                   r.status === 'approved' ? COLORS.green :
                   r.status === 'rejected' ? COLORS.red :
@@ -302,55 +289,43 @@ export default function Leaves({ showNotif }) {
                         {r.employees?.name || 'Unknown'}
                       </span>
                       <span style={{
-                        background: COLORS.purpleDim,
-                        color: COLORS.purple,
+                        background: COLORS.purpleDim, color: COLORS.purple,
                         border: `1px solid ${COLORS.purple}33`,
-                        borderRadius: 20,
-                        padding: "2px 8px",
-                        fontSize: 11,
-                        fontWeight: 700,
+                        borderRadius: 20, padding: "2px 8px",
+                        fontSize: 11, fontWeight: 700,
                       }}>
                         {r.type}
                       </span>
                     </div>
                     <div style={{
-                      color: COLORS.textMuted,
-                      fontSize: 12,
+                      color: COLORS.textMuted, fontSize: 12,
                       fontFamily: "'DM Mono', monospace",
                     }}>
                       {r.from_date} → {r.to_date} · {r.days} day{r.days > 1 ? 's' : ''}
                     </div>
                     <div style={{
-                      color: COLORS.textDim,
-                      fontSize: 12,
-                      marginTop: 6,
-                      fontStyle: "italic",
+                      color: COLORS.textDim, fontSize: 12,
+                      marginTop: 6, fontStyle: "italic",
                     }}>
                       "{r.reason}"
                     </div>
                   </div>
 
                   <div style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                    alignItems: "flex-end",
-                    marginLeft: 12,
+                    display: "flex", flexDirection: "column",
+                    gap: 8, alignItems: "flex-end", marginLeft: 12,
                   }}>
                     <StatusBadge status={r.status} />
-                    {r.status === 'pending' && (
+                    {r.status === 'pending' && isManager && (
                       <div style={{ display: "flex", gap: 6 }}>
                         <button
                           onClick={() => handleApprove(r.id)}
                           style={{
                             background: COLORS.greenDim,
                             border: `1px solid ${COLORS.green}44`,
-                            borderRadius: 8,
-                            padding: "5px 12px",
-                            color: COLORS.green,
-                            fontWeight: 700,
-                            fontSize: 12,
-                            cursor: "pointer",
+                            borderRadius: 8, padding: "5px 12px",
+                            color: COLORS.green, fontWeight: 700,
+                            fontSize: 12, cursor: "pointer",
                           }}
                         >
                           ✓ Approve
@@ -360,12 +335,9 @@ export default function Leaves({ showNotif }) {
                           style={{
                             background: COLORS.redDim,
                             border: `1px solid ${COLORS.red}44`,
-                            borderRadius: 8,
-                            padding: "5px 12px",
-                            color: COLORS.red,
-                            fontWeight: 700,
-                            fontSize: 12,
-                            cursor: "pointer",
+                            borderRadius: 8, padding: "5px 12px",
+                            color: COLORS.red, fontWeight: 700,
+                            fontSize: 12, cursor: "pointer",
                           }}
                         >
                           ✕ Reject

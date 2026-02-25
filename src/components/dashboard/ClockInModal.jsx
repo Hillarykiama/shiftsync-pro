@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
-import { clockIn, clockOut, getEmployees } from '../../lib/db'
+import { clockIn, clockOut } from '../../lib/db'
 import { COLORS } from '../../styles/theme'
 
-export default function ClockInModal({ onClose }) {
+export default function ClockInModal({ onClose, currentEmployee }) {
   const [step, setStep] = useState('idle')
   const [time, setTime] = useState(new Date().toLocaleTimeString())
-  const [clockedIn, setClockedIn] = useState(false)
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000)
@@ -16,22 +15,17 @@ export default function ClockInModal({ onClose }) {
     setStep('scanning')
     setTimeout(() => setStep('verifying'), 1500)
     try {
-      const employees = await getEmployees()
-      const sarah = employees.find(e => e.name === 'Sarah Chen')
-      if (sarah) await clockIn(sarah.id)
+      if (currentEmployee) await clockIn(currentEmployee.id)
     } catch (err) {
       console.error('Clock in error:', err)
     }
     setTimeout(() => setStep('success'), 3000)
-    setClockedIn(true)
   }
 
   const handleClockOut = async () => {
     setStep('clockout')
     try {
-      const employees = await getEmployees()
-      const sarah = employees.find(e => e.name === 'Sarah Chen')
-      if (sarah) await clockOut(sarah.id)
+      if (currentEmployee) await clockOut(currentEmployee.id)
     } catch (err) {
       console.error('Clock out error:', err)
     }
@@ -93,13 +87,17 @@ export default function ClockInModal({ onClose }) {
           {time}
         </div>
         <div style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 32, marginTop: 6 }}>
-          Thursday, February 19, 2026
+          {new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
         </div>
 
         {/* IDLE STATE */}
         {step === 'idle' && (
           <>
-            {/* Camera Frame */}
             <div style={{
               width: 200, height: 200,
               margin: "0 auto 20px",
@@ -114,24 +112,18 @@ export default function ClockInModal({ onClose }) {
               position: "relative",
               overflow: "hidden",
             }}>
-              {/* Corner Brackets */}
               {[
                 { top: 8,    left: 8,    borderTop: `2px solid ${COLORS.accent}`,    borderLeft:  `2px solid ${COLORS.accent}` },
                 { top: 8,    right: 8,   borderTop: `2px solid ${COLORS.accent}`,    borderRight: `2px solid ${COLORS.accent}` },
                 { bottom: 8, left: 8,    borderBottom: `2px solid ${COLORS.accent}`, borderLeft:  `2px solid ${COLORS.accent}` },
                 { bottom: 8, right: 8,   borderBottom: `2px solid ${COLORS.accent}`, borderRight: `2px solid ${COLORS.accent}` },
               ].map((s, i) => (
-                <div key={i} style={{
-                  position: "absolute",
-                  width: 20, height: 20,
-                  ...s,
-                }} />
+                <div key={i} style={{ position: "absolute", width: 20, height: 20, ...s }} />
               ))}
               <div style={{ fontSize: 52 }}>👤</div>
               <div style={{ color: COLORS.textMuted, fontSize: 12 }}>Position your face</div>
             </div>
 
-            {/* GPS Info */}
             <div style={{
               background: COLORS.surfaceAlt,
               border: `1px solid ${COLORS.border}`,
@@ -145,10 +137,9 @@ export default function ClockInModal({ onClose }) {
               gap: 16,
             }}>
               <span>📍 GPS: 37.7749°N, 122.4194°W</span>
-              <span>🌐 IP: 192.168.1.42</span>
+              <span>🌐 IP: Detecting...</span>
             </div>
 
-            {/* Clock In Button */}
             <button
               onClick={handleClock}
               style={{
@@ -264,19 +255,13 @@ export default function ClockInModal({ onClose }) {
             }}>
               ✓
             </div>
-            <div style={{
-              color: COLORS.green,
-              fontSize: 24,
-              fontWeight: 800,
-              marginBottom: 6,
-            }}>
+            <div style={{ color: COLORS.green, fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
               Clocked In!
             </div>
             <div style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 24 }}>
               Identity verified · Location confirmed
             </div>
 
-            {/* Info Card */}
             <div style={{
               background: COLORS.greenDim,
               border: `1px solid ${COLORS.green}33`,
@@ -285,10 +270,10 @@ export default function ClockInModal({ onClose }) {
               marginBottom: 20,
             }}>
               {[
-                { label: "Employee", value: "Sarah Chen"          },
-                { label: "Shift",    value: "09:00 – 17:00"       },
-                { label: "Location", value: "HQ · Floor 3"        },
-                { label: "Method",   value: "Facial Recognition"  },
+                { label: "Employee", value: currentEmployee?.name || 'Unknown' },
+                { label: "Shift",    value: `${currentEmployee?.shift_start || '09:00'} – ${currentEmployee?.shift_end || '17:00'}` },
+                { label: "Location", value: "HQ · Floor 3"       },
+                { label: "Method",   value: "Facial Recognition" },
               ].map(r => (
                 <div key={r.label} style={{
                   display: "flex",
@@ -372,12 +357,7 @@ export default function ClockInModal({ onClose }) {
             }}>
               👋
             </div>
-            <div style={{
-              color: COLORS.purple,
-              fontSize: 24,
-              fontWeight: 800,
-              marginBottom: 6,
-            }}>
+            <div style={{ color: COLORS.purple, fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
               See you tomorrow!
             </div>
             <div style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 24 }}>
@@ -391,10 +371,10 @@ export default function ClockInModal({ onClose }) {
               marginBottom: 20,
             }}>
               {[
-                { label: "Clock In",    value: "08:57 AM" },
-                { label: "Clock Out",   value: time       },
-                { label: "Total Hours", value: "8h 03m"   },
-                { label: "Overtime",    value: "0h"       },
+                { label: "Employee",    value: currentEmployee?.name || 'Unknown' },
+                { label: "Clock Out",   value: time                               },
+                { label: "Total Hours", value: "8h 00m"                           },
+                { label: "Overtime",    value: "0h"                               },
               ].map(r => (
                 <div key={r.label} style={{
                   display: "flex",
@@ -435,7 +415,6 @@ export default function ClockInModal({ onClose }) {
 
       </div>
 
-      {/* Keyframes */}
       <style>{`
         @keyframes scanLine {
           0%   { top: 0% }

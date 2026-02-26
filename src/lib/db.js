@@ -83,7 +83,6 @@ export async function clockIn(employeeId) {
 
 export async function clockOut(employeeId) {
   const today = new Date().toISOString().split('T')[0]
-  const clockOutTime = new Date()
 
   const { data: existing } = await supabase
     .from('attendance')
@@ -92,27 +91,16 @@ export async function clockOut(employeeId) {
     .eq('date', today)
     .single()
 
-  if (!existing) return null
+  if (!existing || !existing.clock_in) return null
 
-  const clockInTime = new Date(existing.clock_in)
-  const hoursToday = parseFloat(
-    ((clockOutTime - clockInTime) / (1000 * 60 * 60)).toFixed(2)
+  const clockOutTime = new Date().toISOString()
+  const result = await calculateAndSaveOvertime(
+    employeeId,
+    existing.clock_in,
+    clockOutTime
   )
-  const overtime = parseFloat(Math.max(0, hoursToday - 8).toFixed(2))
 
-  const { data, error } = await supabase
-    .from('attendance')
-    .update({
-      status: 'clocked-out',
-      clock_out: clockOutTime.toISOString(),
-      hours_today: hoursToday,
-      overtime,
-    })
-    .eq('id', existing.id)
-    .select()
-
-  if (error) console.error('clockOut error:', error)
-  return data
+  return result
 }
 
 // ─── SHIFTS ───────────────────────────────────────────────
@@ -194,7 +182,8 @@ export async function updateLeaveStatus(id, status) {
   if (error) console.error('updateLeaveStatus error:', error)
   return data
 }
-// ─── ANALYTICS ───────────────────────────────────────────
+
+// ─── ANALYTICS ────────────────────────────────────────────
 export async function getAttendanceAnalytics() {
   const { data, error } = await supabase
     .from('attendance')
@@ -218,5 +207,130 @@ export async function getWeeklyAttendance() {
     .gte('date', sevenDaysAgo.toISOString().split('T')[0])
     .lte('date', today.toISOString().split('T')[0])
   if (error) console.error('getWeeklyAttendance error:', error)
+  return data || []
+}
+
+// ─── OVERTIME ─────────────────────────────────────────────
+export async function getOvertimeRules() {
+  const { data, error } = await supabase
+    .from('overtime_rules')
+    .select('*')
+    .single()
+  if (error) console.error('getOvertimeRules error:', error)
+  return data || {
+    daily_threshold: 8,
+    weekly_threshold: 40,
+    rate_multiplier: 1.5,
+    double_time_threshold: 12,
+    double_time_multiplier: 2.0,
+  }
+}
+
+export async function getWeeklyHours(employeeId) {
+  const today = new Date()
+  const monday = new Date(today)
+  monday.setDate(today.getDate() - today.getDay() + 1)
+
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('hours_today, date')
+    .eq('employee_id', employeeId)
+    .gte('date', monday.toISOString().split('T')[0])
+    .lte('date', today.toISOString().split('T')[0])
+  if (error) console.error('getWeeklyHours error:', error)
+
+  const total = (data || []).reduce((sum, r) => sum + (r.hours_today || 0), 0)
+  return parseFloat(total.toFixed(2))
+}
+
+export async function calculateAndSaveOvertime(employeeId, clockInTime, clockOutTime) {
+  const rules = await getOvertimeRules()
+  const weeklyHours = await getWeeklyHours(employeeId)
+
+  const clockIn  = new Date(clockInTime)
+  const clockOut = new Date(clockOutTime)
+  const totalHours = parseFloat(
+    ((clockOut - clockIn) / (1000 * 60 * 60)).toFixed(2)
+  )
+
+  // Daily overtime calculation
+  let regularHours    = 0
+  let overtimeHours   = 0
+  let doubleTimeHours = 0
+
+  if (totalHours <= rules.daily_threshold) {
+    regularHours = totalHours
+  } else if (totalHours <= rules.double_time_threshold) {
+    regularHours  = rules.daily_threshold
+    overtimeHours = totalHours - rules.daily_threshold
+  } else {
+    regularHours    = rules.daily_threshold
+    overtimeHours   = rules.double_time_threshold - rules.daily_threshold
+    doubleTimeHours = totalHours - rules.double_time_threshold
+  }
+
+  // Weekly overtime check
+  const hoursBeforeToday = weeklyHours
+  const hoursAfterToday  = hoursBeforeToday + regularHours
+
+  if (hoursAfterToday > rules.weekly_threshold) {
+    const weeklyOvertimeHours = hoursAfterToday - rules.weekly_threshold
+    regularHours  = Math.max(0, regularHours - weeklyOvertimeHours)
+    overtimeHours = parseFloat((overtimeHours + weeklyOvertimeHours).toFixed(2))
+  }
+
+  // Calculate pay
+  const today = new Date().toISOString().split('T')[0]
+  const { data: attRecord } = await supabase
+    .from('attendance')
+    .select('hourly_rate')
+    .eq('employee_id', employeeId)
+    .eq('date', today)
+    .single()
+
+  const hourlyRate          = attRecord?.hourly_rate || 25
+  const overtimePay         = overtimeHours   * hourlyRate * rules.rate_multiplier
+  const doubleTimePay       = doubleTimeHours * hourlyRate * rules.double_time_multiplier
+  const totalOvertimeAmount = parseFloat((overtimePay + doubleTimePay).toFixed(2))
+
+  // Save to attendance
+  const { data, error } = await supabase
+    .from('attendance')
+    .update({
+      clock_out:         clockOutTime,
+      hours_today:       parseFloat(totalHours.toFixed(2)),
+      regular_hours:     parseFloat(regularHours.toFixed(2)),
+      overtime_hours:    parseFloat(overtimeHours.toFixed(2)),
+      double_time_hours: parseFloat(doubleTimeHours.toFixed(2)),
+      overtime:          parseFloat((overtimeHours + doubleTimeHours).toFixed(2)),
+      overtime_amount:   totalOvertimeAmount,
+      status:            'clocked-out',
+    })
+    .eq('employee_id', employeeId)
+    .eq('date', today)
+    .select()
+
+  if (error) console.error('calculateAndSaveOvertime error:', error)
+
+  return {
+    totalHours:          parseFloat(totalHours.toFixed(2)),
+    regularHours:        parseFloat(regularHours.toFixed(2)),
+    overtimeHours:       parseFloat(overtimeHours.toFixed(2)),
+    doubleTimeHours:     parseFloat(doubleTimeHours.toFixed(2)),
+    totalOvertimeAmount,
+    hourlyRate,
+  }
+}
+
+export async function getOvertimeReport() {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select(`
+      *,
+      employees ( name, avatar, department, role )
+    `)
+    .gt('overtime_hours', 0)
+    .order('overtime_hours', { ascending: false })
+  if (error) console.error('getOvertimeReport error:', error)
   return data || []
 }

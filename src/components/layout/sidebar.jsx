@@ -4,26 +4,24 @@ import { useIsMobile } from '../../hooks/useMediaQuery'
 import { signOut } from '../../lib/auth'
 
 const navItems = [
-  { id: "dashboard",  label: "Dashboard",  icon: "◈" },
-  { id: "attendance", label: "Attendance",  icon: "◉" },
-  { id: "shifts",     label: "Shifts",      icon: "⬡" },
-  { id: "leaves",     label: "Leaves",      icon: "◫" },
-  { id: "analytics",  label: "Analytics",   icon: "▣" },
-  { id: "team",       label: "Team",        icon: "◎" },
+  { id: "dashboard",  label: "Dashboard",  icon: "◈", managerOnly: false },
+  { id: "attendance", label: "Attendance",  icon: "◉", managerOnly: false },
+  { id: "shifts",     label: "Shifts",      icon: "⬡", managerOnly: false },
+  { id: "leaves",     label: "Leaves",      icon: "◫", managerOnly: false },
+  { id: "analytics",  label: "Analytics",   icon: "▣", managerOnly: false },
+  { id: "team",       label: "Team",        icon: "◎", managerOnly: false },
+  { id: "overtime",   label: "Overtime",    icon: "⚡", managerOnly: true  },
 ]
 
 export default function Sidebar({ currentView, onNavigate, user, isManager }) {
   const isMobile = useIsMobile()
 
-  const handleNav = (id) => {
-    onNavigate(id)
-  }
-
   const handleSignOut = async () => {
     await signOut()
   }
 
-  // Mobile Bottom Nav Bar
+  const visibleItems = navItems.filter(n => !n.managerOnly || isManager)
+
   if (isMobile) {
     return (
       <>
@@ -81,10 +79,10 @@ export default function Sidebar({ currentView, onNavigate, user, isManager }) {
           zIndex: 100,
           padding: "0 8px",
         }}>
-          {navItems.map(n => (
+          {visibleItems.map(n => (
             <button
               key={n.id}
-              onClick={() => handleNav(n.id)}
+              onClick={() => onNavigate(n.id)}
               style={{
                 background: "none",
                 border: "none",
@@ -115,7 +113,6 @@ export default function Sidebar({ currentView, onNavigate, user, isManager }) {
     )
   }
 
-  // Desktop Sidebar
   return (
     <div style={{
       width: 220,
@@ -148,15 +145,15 @@ export default function Sidebar({ currentView, onNavigate, user, isManager }) {
           marginTop: 2,
           fontFamily: "'DM Mono', monospace",
         }}>
-          v1.0.0 · {isManager ? 'Manager' : 'Employee'}
+          v1.0.0 · {isManager ? '⭐ Manager' : 'Employee'}
         </div>
       </div>
 
       {/* Nav Items */}
-      {navItems.map(n => (
+      {visibleItems.map(n => (
         <button
           key={n.id}
-          onClick={() => handleNav(n.id)}
+          onClick={() => onNavigate(n.id)}
           style={{
             background: currentView === n.id ? COLORS.accentGlow : "transparent",
             border: currentView === n.id
@@ -183,7 +180,6 @@ export default function Sidebar({ currentView, onNavigate, user, isManager }) {
         </button>
       ))}
 
-      {/* Spacer */}
       <div style={{ flex: 1 }} />
 
       {/* User Profile */}
@@ -239,7 +235,6 @@ export default function Sidebar({ currentView, onNavigate, user, isManager }) {
       >
         <span>→</span> Sign Out
       </button>
-
     </div>
   )
 }

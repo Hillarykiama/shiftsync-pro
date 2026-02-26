@@ -7,6 +7,7 @@ import Shifts from './components/shifts/Shifts'
 import Leaves from './components/leaves/Leaves'
 import Analytics from './components/analytics/Analytics'
 import Team from './components/team/Team'
+import OvertimeReport from './components/analytics/OvertimeReport'
 import ClockInModal from './components/dashboard/ClockInModal'
 import Login from './components/auth/Login'
 import { AuthContext } from './context/AuthContext'
@@ -124,7 +125,7 @@ function App() {
         }}>
           <Notification message={notification?.msg} color={notification?.color} />
 
-          {view === 'dashboard' && (
+          {view === 'dashboard'  && (
             <Dashboard
               onClockIn={() => setShowClockIn(true)}
               currentEmployee={currentEmployee}
@@ -135,17 +136,7 @@ function App() {
           {view === 'leaves'     && <Leaves showNotif={showNotif} />}
           {view === 'analytics'  && <Analytics />}
           {view === 'team'       && <Team />}
-
-          {view !== 'dashboard'  &&
-           view !== 'attendance' &&
-           view !== 'shifts'     &&
-           view !== 'leaves'     &&
-           view !== 'analytics'  &&
-           view !== 'team'       && (
-            <div style={{ color: COLORS.accent, fontSize: 24, fontWeight: 800 }}>
-              📍 {view} — coming soon!
-            </div>
-          )}
+          {view === 'overtime'   && isManager && <OvertimeReport />}
         </div>
 
         {showClockIn && (

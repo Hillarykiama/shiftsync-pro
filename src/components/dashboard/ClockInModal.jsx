@@ -5,6 +5,7 @@ import { COLORS } from '../../styles/theme'
 export default function ClockInModal({ onClose, currentEmployee }) {
   const [step, setStep] = useState('idle')
   const [time, setTime] = useState(new Date().toLocaleTimeString())
+  const [sessionData, setSessionData] = useState(null)
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000)
@@ -25,7 +26,10 @@ export default function ClockInModal({ onClose, currentEmployee }) {
   const handleClockOut = async () => {
     setStep('clockout')
     try {
-      if (currentEmployee) await clockOut(currentEmployee.id)
+      if (currentEmployee) {
+        const result = await clockOut(currentEmployee.id)
+        setSessionData(result)
+      }
     } catch (err) {
       console.error('Clock out error:', err)
     }
@@ -88,10 +92,8 @@ export default function ClockInModal({ onClose, currentEmployee }) {
         </div>
         <div style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 32, marginTop: 6 }}>
           {new Date().toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
+            weekday: 'long', year: 'numeric',
+            month: 'long', day: 'numeric',
           })}
         </div>
 
@@ -189,8 +191,7 @@ export default function ClockInModal({ onClose, currentEmployee }) {
               }} />
               <div style={{ fontSize: 52 }}>👤</div>
               <div style={{
-                color: COLORS.accent,
-                fontSize: 12,
+                color: COLORS.accent, fontSize: 12,
                 fontFamily: "'DM Mono', monospace",
                 animation: "pulse 1s infinite",
               }}>
@@ -221,8 +222,7 @@ export default function ClockInModal({ onClose, currentEmployee }) {
             }}>
               <div style={{ fontSize: 52 }}>🔍</div>
               <div style={{
-                color: COLORS.amber,
-                fontSize: 12,
+                color: COLORS.amber, fontSize: 12,
                 fontFamily: "'DM Mono', monospace",
                 animation: "pulse 0.8s infinite",
               }}>
@@ -336,7 +336,7 @@ export default function ClockInModal({ onClose, currentEmployee }) {
               fontWeight: 600,
               animation: "pulse 1s infinite",
             }}>
-              Processing clock out...
+              Calculating overtime...
             </div>
           </div>
         )}
@@ -371,16 +371,20 @@ export default function ClockInModal({ onClose, currentEmployee }) {
               marginBottom: 20,
             }}>
               {[
-                { label: "Employee",    value: currentEmployee?.name || 'Unknown' },
-                { label: "Clock Out",   value: time                               },
-                { label: "Total Hours", value: "8h 00m"                           },
-                { label: "Overtime",    value: "0h"                               },
+                { label: "Employee",      value: currentEmployee?.name || 'Unknown'               },
+                { label: "Clock Out",     value: time                                              },
+                { label: "Total Hours",   value: `${sessionData?.totalHours || 0}h`               },
+                { label: "Regular",       value: `${sessionData?.regularHours || 0}h`             },
+                { label: "Overtime",      value: `${sessionData?.overtimeHours || 0}h`            },
+                { label: "Double Time",   value: `${sessionData?.doubleTimeHours || 0}h`          },
+                { label: "OT Pay",        value: `$${sessionData?.totalOvertimeAmount || '0.00'}` },
               ].map(r => (
                 <div key={r.label} style={{
                   display: "flex",
                   justifyContent: "space-between",
                   padding: "5px 0",
                   fontSize: 13,
+                  borderBottom: `1px solid ${COLORS.purple}22`,
                 }}>
                   <span style={{ color: COLORS.textMuted }}>{r.label}</span>
                   <span style={{

@@ -253,7 +253,6 @@ export async function calculateAndSaveOvertime(employeeId, clockInTime, clockOut
     ((clockOut - clockIn) / (1000 * 60 * 60)).toFixed(2)
   )
 
-  // Daily overtime calculation
   let regularHours    = 0
   let overtimeHours   = 0
   let doubleTimeHours = 0
@@ -269,7 +268,6 @@ export async function calculateAndSaveOvertime(employeeId, clockInTime, clockOut
     doubleTimeHours = totalHours - rules.double_time_threshold
   }
 
-  // Weekly overtime check
   const hoursBeforeToday = weeklyHours
   const hoursAfterToday  = hoursBeforeToday + regularHours
 
@@ -279,7 +277,6 @@ export async function calculateAndSaveOvertime(employeeId, clockInTime, clockOut
     overtimeHours = parseFloat((overtimeHours + weeklyOvertimeHours).toFixed(2))
   }
 
-  // Calculate pay
   const today = new Date().toISOString().split('T')[0]
   const { data: attRecord } = await supabase
     .from('attendance')
@@ -293,7 +290,6 @@ export async function calculateAndSaveOvertime(employeeId, clockInTime, clockOut
   const doubleTimePay       = doubleTimeHours * hourlyRate * rules.double_time_multiplier
   const totalOvertimeAmount = parseFloat((overtimePay + doubleTimePay).toFixed(2))
 
-  // Save to attendance
   const { data, error } = await supabase
     .from('attendance')
     .update({
@@ -333,4 +329,125 @@ export async function getOvertimeReport() {
     .order('overtime_hours', { ascending: false })
   if (error) console.error('getOvertimeReport error:', error)
   return data || []
+}
+
+// ─── WEEKLY DATA ──────────────────────────────────────────
+export async function getMyWeeklyData(employeeId) {
+  const today = new Date()
+  const monday = new Date(today)
+  monday.setDate(today.getDate() - today.getDay() + 1)
+
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .gte('date', monday.toISOString().split('T')[0])
+    .lte('date', today.toISOString().split('T')[0])
+  if (error) console.error('getMyWeeklyData error:', error)
+  return data || []
+}
+
+// ─── LEAVE BALANCE ────────────────────────────────────────
+export async function getMyLeaveBalance(employeeId) {
+  const currentYear = new Date().getFullYear()
+  const { data, error } = await supabase
+    .from('leaves')
+    .select('type, days, status')
+    .eq('employee_id', employeeId)
+    .eq('status', 'approved')
+    .gte('from_date', `${currentYear}-01-01`)
+    .lte('from_date', `${currentYear}-12-31`)
+  if (error) console.error('getMyLeaveBalance error:', error)
+
+  const used = {
+    'Annual Leave':    0,
+    'Sick Leave':      0,
+    'Emergency Leave': 0,
+    'Unpaid Leave':    0,
+    'Parental Leave':  0,
+  }
+
+  ;(data || []).forEach(l => {
+    if (used[l.type] !== undefined) used[l.type] += l.days
+  })
+
+  return [
+    { type: "Annual",    used: used['Annual Leave'],    total: 25 },
+    { type: "Sick",      used: used['Sick Leave'],      total: 10 },
+    { type: "Emergency", used: used['Emergency Leave'], total: 5  },
+    { type: "Parental",  used: used['Parental Leave'],  total: 90 },
+  ]
+}
+
+// ─── NOTIFICATIONS ────────────────────────────────────────
+export async function getMyNotifications(employeeId) {
+  const { data: leaves } = await supabase
+    .from('leaves')
+    .select('id, type, status, from_date, to_date, updated_at')
+    .eq('employee_id', employeeId)
+    .in('status', ['approved', 'rejected'])
+    .order('updated_at', { ascending: false })
+    .limit(10)
+
+  const { data: shifts } = await supabase
+    .from('shifts')
+    .select('id, shift_date, status, updated_at')
+    .eq('employee_id', employeeId)
+    .in('status', ['approved', 'rejected'])
+    .order('updated_at', { ascending: false })
+    .limit(10)
+
+  return [
+    ...(leaves || []).map(l => ({
+      id: `leave-${l.id}`,
+      type: 'leave',
+      status: l.status,
+      message: l.status === 'approved'
+        ? `✅ Leave approved: ${l.type} (${l.from_date} → ${l.to_date})`
+        : `❌ Leave rejected: ${l.type} (${l.from_date} → ${l.to_date})`,
+      time: l.updated_at,
+    })),
+    ...(shifts || []).map(s => ({
+      id: `shift-${s.id}`,
+      type: 'shift',
+      status: s.status,
+      message: s.status === 'approved'
+        ? `✅ Shift swap approved for ${s.shift_date}`
+        : `❌ Shift swap rejected for ${s.shift_date}`,
+      time: s.updated_at,
+    })),
+  ].sort((a, b) => new Date(b.time) - new Date(a.time))
+}
+
+// ─── FACE RECOGNITION ─────────────────────────────────────
+export async function saveFaceDescriptor(employeeId, descriptor) {
+  const { data, error } = await supabase
+    .from('employees')
+    .update({
+      face_descriptor: Array.from(descriptor),
+      face_registered: true,
+    })
+    .eq('id', employeeId)
+    .select()
+  if (error) console.error('saveFaceDescriptor error:', error)
+  return data
+}
+
+export async function getAllFaceDescriptors() {
+  const { data, error } = await supabase
+    .from('employees')
+    .select('id, name, avatar, face_descriptor')
+    .eq('face_registered', true)
+  if (error) console.error('getAllFaceDescriptors error:', error)
+  return data || []
+}
+
+export async function resetEmployeeFace(employeeId) {
+  const { data, error } = await supabase
+    .from('employees')
+    .update({ face_descriptor: null, face_registered: false })
+    .eq('id', employeeId)
+    .select()
+  if (error) console.error('resetEmployeeFace error:', error)
+  return data
 }

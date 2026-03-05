@@ -24,8 +24,21 @@ export default function Attendance() {
       setAttendance(att)
       setLoading(false)
     }
+
     load()
-  }, [])
+
+    if (isManager) {
+      const interval = setInterval(async () => {
+        const [emps, att] = await Promise.all([
+          getEmployees(),
+          getTodayAttendance(),
+        ])
+        setEmployees(emps)
+        setAttendance(att)
+      }, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [isManager])
 
   const filteredEmployees = isManager
     ? employees
@@ -65,8 +78,25 @@ export default function Attendance() {
     <div style={{ animation: "fadeIn 0.3s ease" }}>
 
       <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em" }}>
+        <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: 12 }}>
           {isManager ? 'Live Attendance' : 'My Attendance'}
+          {isManager && (
+            <span style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: COLORS.greenDim,
+              border: `1px solid ${COLORS.green}44`,
+              borderRadius: 20, padding: "3px 10px",
+              fontSize: 11, color: COLORS.green,
+              fontFamily: "'DM Mono', monospace", fontWeight: 700,
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: COLORS.green, display: "inline-block",
+                animation: "pulse 1.5s infinite",
+              }} />
+              LIVE · 30s
+            </span>
+          )}
         </div>
         <div style={{ color: COLORS.textMuted, fontSize: 14, marginTop: 4 }}>
           {isManager ? 'Real-time employee status · GPS + IP verified' : 'Your attendance record for today'}
@@ -82,8 +112,7 @@ export default function Attendance() {
             { label: "Absent",      count: countBy('absent'),      color: COLORS.red       },
           ].map((s, i) => (
             <div key={i} style={{
-              background: `${s.color}08`,
-              border: `1px solid ${s.color}33`,
+              background: `${s.color}08`, border: `1px solid ${s.color}33`,
               borderRadius: 16, padding: "16px 20px",
               display: "flex", alignItems: "center", gap: 16,
             }}>
@@ -155,7 +184,11 @@ export default function Attendance() {
         </table>
       </div>
 
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`
+        @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+        @keyframes shimmer{0%,100%{opacity:1}50%{opacity:0.4}}
+      `}</style>
     </div>
   )
 }

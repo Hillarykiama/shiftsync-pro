@@ -8,5 +8,10 @@ export function useAuth() {
 
 export function useIsManager() {
   const { currentEmployee } = useAuth()
-  return currentEmployee?.role_type === 'manager'
+  return currentEmployee?.role_type === 'manager' || currentEmployee?.role_type === 'admin'
+}
+
+export function useIsAdmin() {
+  const { currentEmployee } = useAuth()
+  return currentEmployee?.role_type === 'admin'
 }

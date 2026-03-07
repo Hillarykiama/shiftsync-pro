@@ -7,7 +7,7 @@ import Shifts from './components/shifts/Shifts'
 import Leaves from './components/leaves/Leaves'
 import Analytics from './components/analytics/Analytics'
 import Team from './components/team/Team'
-import OvertimeReport from './components/analytics/OvertimeReport'
+import AdminPanel from './components/admin/AdminPanel'
 import ClockInModal from './components/dashboard/ClockInModal'
 import Login from './components/auth/Login'
 import { AuthContext } from './context/AuthContext'
@@ -75,7 +75,8 @@ function App() {
     setTimeout(() => setNotification(null), 3000)
   }
 
-  const isManager = currentEmployee?.role_type === 'manager'
+  const isAdmin   = currentEmployee?.role_type === 'admin'
+  const isManager = currentEmployee?.role_type === 'manager' || isAdmin
 
   if (authLoading) return (
     <div style={{
@@ -104,7 +105,7 @@ function App() {
   if (!session) return <Login />
 
   return (
-    <AuthContext.Provider value={{ currentEmployee, isManager }}>
+    <AuthContext.Provider value={{ currentEmployee, isManager, isAdmin }}>
       <div style={{
         display: 'flex',
         minHeight: '100vh',
@@ -116,6 +117,7 @@ function App() {
           onNavigate={setView}
           user={currentEmployee || { name: 'Loading...', avatar: '..', role: 'Employee' }}
           isManager={isManager}
+          isAdmin={isAdmin}
         />
 
         <div style={{
@@ -136,7 +138,7 @@ function App() {
           {view === 'leaves'     && <Leaves showNotif={showNotif} />}
           {view === 'analytics'  && <Analytics />}
           {view === 'team'       && <Team />}
-          {view === 'overtime'   && isManager && <OvertimeReport />}
+          {view === 'admin'      && isAdmin && <AdminPanel showNotif={showNotif} />}
         </div>
 
         {showClockIn && (

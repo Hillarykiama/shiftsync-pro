@@ -451,3 +451,29 @@ export async function resetEmployeeFace(employeeId) {
   if (error) console.error('resetEmployeeFace error:', error)
   return data
 }
+
+// ─── ADMIN ────────────────────────────────────────────────
+export async function updateEmployee(id, updates) {
+  const { data, error } = await supabase
+    .from('employees')
+    .update(updates)
+    .eq('id', id)
+    .select()
+  if (error) throw error
+  return data
+}
+
+export async function deactivateEmployee(id) {
+  const { data, error } = await supabase
+    .from('employees')
+    .update({ active: false })
+    .eq('id', id)
+    .select()
+  if (error) throw error
+  return data
+}
+
+export async function resetEmployeePassword(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email)
+  if (error) throw error
+}
